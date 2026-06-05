@@ -1,0 +1,9 @@
+{
+    "memory": "1G",
+    "cpu": "1",
+    "arch": "i386",
+    "net": "rtl8139",
+    "vga": "std",
+    "bios": "seabios",
+    "disk_format": "qcow2"
+}
