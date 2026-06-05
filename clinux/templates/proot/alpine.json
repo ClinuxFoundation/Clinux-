@@ -1,0 +1,7 @@
+{
+    "shell": "/bin/sh",
+    "workdir": "/root",
+    "distro": "alpine",
+    "release": "latest",
+    "packages": ["curl", "git", "vim"]
+}
