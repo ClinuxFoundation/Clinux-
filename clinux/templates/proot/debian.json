@@ -1,0 +1,7 @@
+{
+    "shell": "/bin/bash",
+    "workdir": "/root",
+    "distro": "debian",
+    "release": "stable",
+    "packages": ["curl", "wget", "git", "vim"]
+}
