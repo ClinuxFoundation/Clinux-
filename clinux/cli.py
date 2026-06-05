@@ -1,132 +1,42 @@
 """Interface de linha de comando principal."""
-
 import argparse
 import sys
-from pathlib import Path
-
-from .storage import Storage
-from .qemu import QEMUManager
-from .proot import PRootManager
-
-
-def cmd_install(args):
-    """Instala uma ISO Linux criando disco virtual automático."""
-    qemu = QEMUManager()
-    qemu.install(args.iso)
-
-
-def cmd_run(args):
-    """Inicia uma máquina virtual já instalada."""
-    qemu = QEMUManager()
-    qemu.run(args.name)
-
-
-def cmd_proot(args):
-    """Inicia ambiente Linux leve usando PRoot."""
-    proot = PRootManager()
-    proot.start(args.rootfs)
-
-
-def cmd_list(args):
-    """Lista VMs e rootfs disponíveis."""
-    storage = Storage()
-    
-    vms = storage.list_vms()
-    roots = storage.list_roots()
-    
-    if vms:
-        print("\n📦 Máquinas Virtuais:")
-        for vm in vms:
-            print(f"  • {vm}")
-    
-    if roots:
-        print("\n🌱 Ambientes PRoot:")
-        for root in roots:
-            print(f"  • {root}")
-    
-    if not vms and not roots:
-        print("Nenhum ambiente encontrado.")
-
-
-def cmd_delete(args):
-    """Remove VM ou rootfs."""
-    storage = Storage()
-    
-    # Tenta deletar como VM primeiro
-    if storage.get_vm(args.name):
-        storage.del_vm(args.name)
-        print(f"✅ VM '{args.name}' removida.")
-    # Tenta deletar como rootfs
-    elif storage.get_root(args.name):
-        storage.del_root(args.name)
-        print(f"✅ Rootfs '{args.name}' removido.")
-    else:
-        print(f"❌ '{args.name}' não encontrado.")
-
-
-def cmd_snapshot(args):
-    """Salva ou restaura snapshot de uma VM."""
-    qemu = QEMUManager()
-    
-    if args.action == "save":
-        qemu.snapshot_save(args.name)
-        print(f"✅ Snapshot salvo para '{args.name}'.")
-    elif args.action == "load":
-        qemu.snapshot_load(args.name)
-        print(f"✅ Snapshot restaurado para '{args.name}'.")
-
+from .core.storage_manager import StorageManager
+from .core.qemu_manager import QEMUManager
+from .core.proot_manager import PRootManager
 
 def main():
-    """Função principal da CLI."""
-    parser = argparse.ArgumentParser(
-        description="CLINUX - Gerenciador de ambientes Linux",
-        usage="clinux <comando> [opções]"
-    )
+    parser = argparse.ArgumentParser(description="CLINUX")
+    sub = parser.add_subparsers(dest="cmd")
     
-    subparsers = parser.add_subparsers(dest="command", help="Comandos disponíveis")
-    
-    # install
-    install_parser = subparsers.add_parser("install", help="Instalar ISO Linux")
-    install_parser.add_argument("iso", help="Caminho para arquivo ISO")
-    
-    # run
-    run_parser = subparsers.add_parser("run", help="Iniciar VM instalada")
-    run_parser.add_argument("name", help="Nome da VM")
-    
-    # proot
-    proot_parser = subparsers.add_parser("proot", help="Iniciar ambiente PRoot")
-    proot_parser.add_argument("rootfs", help="Caminho para rootfs (tar.gz ou diretório)")
-    
-    # list
-    subparsers.add_parser("list", help="Listar VMs e rootfs")
-    
-    # delete
-    delete_parser = subparsers.add_parser("delete", help="Remover VM ou rootfs")
-    delete_parser.add_argument("name", help="Nome do ambiente")
-    
-    # snapshot
-    snap_parser = subparsers.add_parser("snapshot", help="Gerenciar snapshots")
-    snap_parser.add_argument("action", choices=["save", "load"], help="Ação do snapshot")
-    snap_parser.add_argument("name", help="Nome da VM")
+    sub.add_parser("install").add_argument("iso")
+    sub.add_parser("run").add_argument("name")
+    sub.add_parser("proot").add_argument("rootfs")
+    sub.add_parser("list")
+    sub.add_parser("delete").add_argument("name")
+    snap = sub.add_parser("snapshot")
+    snap.add_argument("action", choices=["save","load"])
+    snap.add_argument("name")
     
     args = parser.parse_args()
     
-    if not args.command:
-        parser.print_help()
-        sys.exit(1)
+    storage = StorageManager()
+    qemu = QEMUManager()
+    proot = PRootManager()
     
-    # Mapeia comandos para funções
-    commands = {
-        "install": cmd_install,
-        "run": cmd_run,
-        "proot": cmd_proot,
-        "list": cmd_list,
-        "delete": cmd_delete,
-        "snapshot": cmd_snapshot,
-    }
-    
-    commands[args.command](args)
-
-
-if __name__ == "__main__":
-    main()
+    if args.cmd == "install":
+        qemu.install(args.iso)
+    elif args.cmd == "run":
+        qemu.run(args.name)
+    elif args.cmd == "proot":
+        proot.start(args.rootfs)
+    elif args.cmd == "list":
+        print("VMs:", storage.list_vms())
+        print("Rootfs:", storage.list_roots())
+    elif args.cmd == "delete":
+        storage.delete(args.name)
+    elif args.cmd == "snapshot":
+        if args.action == "save":
+            qemu.snapshot_save(args.name)
+        else:
+            qemu.snapshot_load(args.name)
