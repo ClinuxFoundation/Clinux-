@@ -1,0 +1,7 @@
+{
+    "home": "/tmp/.clinux",
+    "qemu_bin": "qemu-system-x86_64",
+    "default_memory": "2G",
+    "default_cpu": "2",
+    "default_disk": "20G"
+}
