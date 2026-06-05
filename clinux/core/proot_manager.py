@@ -1,4 +1,4 @@
-"""Gerenciador PRoot com fallback QEMU para Termux."""
+"""Gerenciador PRoot - Força QEMU no Termux para resolver linker."""
 import subprocess
 import sys
 import tarfile
@@ -18,6 +18,11 @@ class PRootManager(BaseManager):
             print("❌ Instale proot:")
             print("   Termux: pkg install proot")
             print("   Linux: sudo apt install proot")
+            sys.exit(1)
+        
+        if self.is_termux and not shutil.which("qemu-aarch64"):
+            print("❌ Instale QEMU user mode:")
+            print("   pkg install qemu-user-aarch64")
             sys.exit(1)
     
     def validate(self, target):
@@ -48,36 +53,6 @@ class PRootManager(BaseManager):
                 return sh
         return "/bin/sh"
     
-    def _find_qemu(self, target):
-        """Detecta se precisa de QEMU e qual binário usar."""
-        # Verifica arquitetura do binário
-        shell = self._find_shell(target)
-        shell_path = Path(target) / shell.lstrip("/")
-        
-        try:
-            result = subprocess.run(
-                ["file", str(shell_path)], capture_output=True, text=True
-            )
-            
-            if "ARM aarch64" in result.stdout:
-                host = subprocess.run(
-                    ["uname", "-m"], capture_output=True, text=True
-                )
-                if "aarch64" not in host.stdout:
-                    # Host não é ARM64, precisa de QEMU
-                    if shutil.which("qemu-aarch64"):
-                        return "qemu-aarch64"
-            elif "Intel 80386" in result.stdout:
-                if shutil.which("qemu-i386"):
-                    return "qemu-i386"
-            elif "x86-64" in result.stdout:
-                if shutil.which("qemu-x86_64"):
-                    return "qemu-x86_64"
-        except:
-            pass
-        
-        return None
-    
     def start(self, rootfs_path):
         self.check_dependencies()
         
@@ -102,10 +77,28 @@ class PRootManager(BaseManager):
             self.storage.add_root(name, target)
         
         shell = self._find_shell(target)
-        qemu = self._find_qemu(target)
         
         # Monta comando
         cmd = ["proot", "-r", str(target)]
+        
+        # NO TERMUX, SEMPRE USA QEMU (resolve problema do linker)
+        if self.is_termux:
+            cmd.extend(["-q", "qemu-aarch64"])
+            print("🔄 Usando QEMU para compatibilidade...")
+        
+        cmd.extend([
+            "-b", "/dev:/dev",
+            "-b", "/proc:/proc",
+            "-b", "/sys:/sys",
+            "-w", "/",
+            shell
+        ])
+        
+        print(f"🌱 Iniciando ambiente PRoot '{name}'...")
+        print(f"   Shell: {shell}")
+        print(f"   Digite 'exit' para sair\n")
+        
+        subprocess.run(cmd, check=False)        cmd = ["proot", "-r", str(target)]
         
         # Adiciona QEMU se necessário
         if qemu:
