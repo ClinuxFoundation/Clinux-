@@ -1,11 +1,11 @@
-"""Gerenciador PRoot."""
+"""Gerenciador PRoot - Simples e direto."""
 import subprocess
 import sys
 import tarfile
-import os
 from pathlib import Path
 from .base_manager import BaseManager
 from .storage_manager import StorageManager
+
 
 class PRootManager(BaseManager):
     """Gerencia ambientes Linux leves usando PRoot."""
@@ -32,51 +32,47 @@ class PRootManager(BaseManager):
         return Path(target).exists()
     
     def _extract_rootfs(self, archive_path, dest_dir):
-        """Extrai rootfs ignorando dispositivos (seguro para Termux)."""
+        """Extrai rootfs ignorando dispositivos."""
         print(f"📦 Extraindo rootfs para {dest_dir}...")
         dest_dir = Path(dest_dir)
         dest_dir.mkdir(parents=True, exist_ok=True)
         
         with tarfile.open(archive_path) as tar:
             for member in tar.getmembers():
-                # Pula arquivos de dispositivo (major/minor)
+                # Pula dispositivos
                 if member.isdev():
-                    print(f"  ⏭️  Pulando dispositivo: {member.name}")
-                    continue
-                # Pula hard links quebrados
-                if member.islnk():
-                    try:
-                        tar.extract(member, dest_dir)
-                    except:
-                        print(f"  ⏭️  Pulando link: {member.name}")
                     continue
                 try:
                     tar.extract(member, dest_dir)
-                except PermissionError:
-                    print(f"  ⚠️  Permissão negada: {member.name}")
-                except OSError as e:
-                    print(f"  ⚠️  Erro ao extrair {member.name}: {e}")
+                except (PermissionError, OSError):
+                    pass
         
-        # Cria diretórios essenciais se não existirem
+        # Cria diretórios essenciais
         for d in ["dev", "proc", "sys", "tmp"]:
             (dest_dir / d).mkdir(exist_ok=True)
         
         print("✅ Extração concluída!")
+    
+    def _find_shell(self, target):
+        """Encontra shell disponível."""
+        for sh in ["/bin/bash", "/bin/zsh", "/bin/ash", "/bin/sh"]:
+            if (Path(target) / sh.lstrip("/")).exists():
+                return sh
+        return "/bin/sh"
     
     def start(self, rootfs_path):
         """Inicia ambiente PRoot."""
         self.check_dependencies()
         
         rootfs_path = Path(rootfs_path)
-        
         if not rootfs_path.exists():
             print(f"❌ Rootfs não encontrado: {rootfs_path}")
             sys.exit(1)
         
-        # Gera nome baseado no caminho
+        # Nome baseado no arquivo
         name = rootfs_path.stem.replace(".tar", "")
         
-        # Se for tarball, extrai primeiro
+        # Extrai se for tarball
         if str(rootfs_path).endswith((".tar.gz", ".tgz", ".tar")):
             dest = self.storage.roots / name
             if not dest.exists() or not any(dest.iterdir()):
@@ -85,25 +81,23 @@ class PRootManager(BaseManager):
         else:
             target = rootfs_path
         
-        # Registra rootfs
+        # Registra
         if not self.storage.get_root(name):
             self.storage.add_root(name, target)
         
-        # Detecta shell disponível
-        shell = "/bin/sh"
-        for sh in ["/bin/bash", "/bin/zsh", "/bin/sh"]:
-            if (Path(target) / sh.lstrip("/")).exists():
-                shell = sh
-                break
+        # Encontra shell
+        shell = self._find_shell(target)
         
-        # Monta binds essenciais
-        binds = []
-        for d in ["/dev", "/proc", "/sys"]:
-            if Path(d).exists():
-                binds.extend(["-b", f"{d}:{d}"])
-        
-        # Inicia PRoot
-        cmd = ["proot"] + binds + ["-r", str(target), "-w", "/", shell]
+        # Comando proot simples
+        cmd = [
+            "proot",
+            "-r", str(target),
+            "-b", "/dev:/dev",
+            "-b", "/proc:/proc",
+            "-b", "/sys:/sys",
+            "-w", "/",
+            shell
+        ]
         
         print(f"🌱 Iniciando ambiente PRoot '{name}'...")
         print(f"   Shell: {shell}")
