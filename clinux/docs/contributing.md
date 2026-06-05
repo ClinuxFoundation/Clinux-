@@ -1,5 +1,3 @@
-### clinux/clinux/docs/contributing.md
-```markdown
 # Contribuindo
 
 1. Fork o projeto
