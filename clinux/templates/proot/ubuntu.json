@@ -1,0 +1,7 @@
+{
+    "shell": "/bin/bash",
+    "workdir": "/home/ubuntu",
+    "distro": "ubuntu",
+    "release": "22.04",
+    "packages": ["curl", "wget", "git", "nano"]
+}
