@@ -1,0 +1,8 @@
+{
+    "memory": "512M",
+    "cpu": "1",
+    "arch": "x86_64",
+    "net": "none",
+    "vga": "cirrus",
+    "disk_format": "qcow2"
+}
