@@ -1,4 +1,4 @@
-"""Permite executar o pacote com: python -m clinux"""
+"""Entry point para python -m clinux."""
 from .cli import main
 
 if __name__ == "__main__":
