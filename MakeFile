@@ -1,0 +1,33 @@
+.PHONY: install test lint clean
+
+install:
+	pip install -e .
+
+install-dev:
+	pip install -e .[dev]
+
+test:
+	pytest tests/ -v --cov=clinux
+
+lint:
+	flake8 clinux/
+	black --check clinux/
+	isort --check-only clinux/
+	mypy clinux/
+
+format:
+	black clinux/
+	isort clinux/
+
+clean:
+	rm -rf build/
+	rm -rf dist/
+	rm -rf *.egg-info
+	find . -type d -name __pycache__ -exec rm -rf {} +
+	find . -type f -name "*.pyc" -delete
+
+build:
+	python setup.py sdist bdist_wheel
+
+docs:
+	cd docs && make html
