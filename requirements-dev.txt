@@ -1,0 +1,9 @@
+pytest>=6.0
+pytest-cov>=2.12
+black>=21.0
+flake8>=3.9
+mypy>=0.910
+isort>=5.9
+pre-commit>=2.14
+tox>=3.24
+sphinx>=4.0
