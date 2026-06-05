@@ -1,0 +1,10 @@
+"""Constantes do sistema."""
+SUPPORTED_ARCH = ["x86_64", "i386", "arm", "aarch64"]
+QCOW2_EXT = ".qcow2"
+JSON_EXT = ".json"
+TAR_EXT = ".tar.gz"
+ISO_EXT = ".iso"
+VM_DIR = "vms"
+DISKS_DIR = "disks"
+SNAPS_DIR = "snapshots"
+ROOTS_DIR = "rootfs"
