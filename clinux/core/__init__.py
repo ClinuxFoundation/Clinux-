@@ -1,0 +1,1 @@
+"""Módulos core do CLINUX."""
