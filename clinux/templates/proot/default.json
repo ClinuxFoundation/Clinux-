@@ -1,0 +1,6 @@
+{
+    "shell": "/bin/bash",
+    "workdir": "/root",
+    "bind_mounts": ["/dev", "/proc", "/sys"],
+    "distro": "debian"
+}
