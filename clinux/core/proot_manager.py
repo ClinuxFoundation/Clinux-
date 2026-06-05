@@ -63,7 +63,6 @@ class PRootManager(BaseManager):
         
         name = rootfs_path.stem.replace(".tar", "")
         
-        # Extrai se for tarball
         if str(rootfs_path).endswith((".tar.gz", ".tgz", ".tar")):
             dest = self.storage.roots / name
             if not dest.exists() or not any(dest.iterdir()):
@@ -72,38 +71,16 @@ class PRootManager(BaseManager):
         else:
             target = rootfs_path
         
-        # Registra
         if not self.storage.get_root(name):
             self.storage.add_root(name, target)
         
         shell = self._find_shell(target)
         
-        # Monta comando
         cmd = ["proot", "-r", str(target)]
         
-        # NO TERMUX, SEMPRE USA QEMU (resolve problema do linker)
         if self.is_termux:
             cmd.extend(["-q", "qemu-aarch64"])
             print("🔄 Usando QEMU para compatibilidade...")
-        
-        cmd.extend([
-            "-b", "/dev:/dev",
-            "-b", "/proc:/proc",
-            "-b", "/sys:/sys",
-            "-w", "/",
-            shell
-        ])
-        
-        print(f"🌱 Iniciando ambiente PRoot '{name}'...")
-        print(f"   Shell: {shell}")
-        print(f"   Digite 'exit' para sair\n")
-        
-        subprocess.run(cmd, check=False)        cmd = ["proot", "-r", str(target)]
-        
-        # Adiciona QEMU se necessário
-        if qemu:
-            print(f"🔄 Usando {qemu} para tradução de binários...")
-            cmd.extend(["-q", qemu])
         
         cmd.extend([
             "-b", "/dev:/dev",
