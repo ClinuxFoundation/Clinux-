@@ -1,0 +1,9 @@
+{
+    "memory": "8G",
+    "cpu": "4",
+    "arch": "x86_64",
+    "net": "virtio",
+    "vga": "virtio",
+    "disk_format": "raw",
+    "acceleration": "kvm"
+}
