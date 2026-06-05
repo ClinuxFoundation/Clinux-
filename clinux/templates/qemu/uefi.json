@@ -1,0 +1,9 @@
+{
+    "memory": "4G",
+    "cpu": "2",
+    "arch": "x86_64",
+    "net": "e1000",
+    "vga": "qxl",
+    "bios": "/usr/share/ovmf/OVMF.fd",
+    "disk_format": "qcow2"
+}
