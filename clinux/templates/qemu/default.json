@@ -1,0 +1,8 @@
+{
+    "memory": "2G",
+    "cpu": "2",
+    "arch": "x86_64",
+    "net": "user",
+    "vga": "std",
+    "disk_format": "qcow2"
+}
