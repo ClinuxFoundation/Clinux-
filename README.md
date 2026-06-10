@@ -1,6 +1,6 @@
 # CLINUX
 
-![Open Source](https://img.shields.io/badge/open--source-yes-brightgreen) ![GPL-v3.0](https://img.shields.io/badge/license-%20%20GNU%20GPLv3%20-green?style=plastic) ![Made with Care](https://img.shields.io/badge/made%20with-love-brightgreen?style=for-the-badge)
+![Open Source](https://img.shields.io/badge/open--source-yes-brightgreen?style=for-the-badge) ![License](https://img.shields.io/badge/license-GNU%20GPLv3-blue?style=for-the-badge) ![Made with Care](https://img.shields.io/badge/made%20with-love-brightgreen?style=for-the-badge)
 
 
 Ferramenta CLI para gerenciar ambientes Linux usando QEMU e PRoot.
