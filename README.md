@@ -1,5 +1,7 @@
 # CLINUX
 
+![Open Source](https://img.shields.io/badge/open--source-yes-brightgreen)
+
 Ferramenta CLI para gerenciar ambientes Linux usando QEMU e PRoot.
 
 ## Instalação
