@@ -25,10 +25,5 @@ Requisitos
 · QEMU (para VMs)
 · PRoot (para ambientes rootfs)
 
-Licença
-
-GPL-v3.0
-
-```
-
----
+## License
+This project is open-source under the GPL-v3.0 License.
