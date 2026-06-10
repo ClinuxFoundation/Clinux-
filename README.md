@@ -27,3 +27,5 @@ Requisitos
 
 ## License
 This project is open-source under the GPL-v3.0 License.
+
+© Davi - Clinux Project
