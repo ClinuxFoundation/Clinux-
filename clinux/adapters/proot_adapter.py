@@ -33,7 +33,10 @@ class PRootAdapter:
         # Prepara o rootfs (cria diretórios e mounts necessários)
         self._prepare_rootfs(rootfs_path)
         
-        cmd = self._build_proot_command(rootfs_path, shell, bind_mounts)
+        # Resolve symlinks no shell para evitar problemas com PRoot
+        resolved_shell = self._resolve_shell_symlink(rootfs_path, shell)
+        
+        cmd = self._build_proot_command(rootfs_path, resolved_shell, bind_mounts)
         
         try:
             result = subprocess.run(cmd, check=False)
@@ -62,6 +65,56 @@ class PRootAdapter:
         except Exception as e:
             print(f"❌ Erro ao extrair tarball: {e}", file=sys.stderr)
             raise
+    
+    def _resolve_shell_symlink(self, rootfs_path, shell):
+        """Resolve symlinks de shell para o binário real.
+        
+        Args:
+            rootfs_path: Path object do rootfs
+            shell: Caminho do shell (ex: /bin/ash)
+        
+        Returns:
+            Caminho resolvido do shell (segue symlinks até encontrar arquivo real)
+        """
+        if not shell:
+            return shell
+        
+        shell_path = rootfs_path / shell.lstrip("/")
+        
+        try:
+            # Segue symlinks até encontrar o arquivo real
+            max_iterations = 10
+            current_path = shell_path
+            
+            for _ in range(max_iterations):
+                if current_path.is_symlink():
+                    # Lê o target do symlink
+                    target = current_path.readlink()
+                    
+                    # Se o target for absoluto, usa diretamente
+                    if target.is_absolute():
+                        current_path = rootfs_path / str(target).lstrip("/")
+                    else:
+                        # Se for relativo, resolve a partir do diretório do symlink
+                        current_path = current_path.parent / target
+                    
+                    # Normaliza o caminho
+                    current_path = current_path.resolve()
+                else:
+                    # Encontrou um arquivo não-symlink
+                    break
+            
+            # Retorna o caminho relativo ao rootfs
+            try:
+                relative = current_path.relative_to(rootfs_path)
+                return f"/{relative}"
+            except ValueError:
+                # Se não conseguir tornar relativo, retorna o shell original
+                return shell
+                
+        except Exception as e:
+            # Em caso de erro, retorna o shell original
+            return shell
     
     def _prepare_rootfs(self, rootfs_path):
         """Prepara o rootfs criando diretórios e permissões necessárias."""
@@ -161,7 +214,7 @@ class PRootAdapter:
         
         Args:
             rootfs_path: Path object do rootfs
-            shell: Shell a usar
+            shell: Shell a usar (já com symlinks resolvidos)
             bind_mounts: Bind mounts adicionais
         
         Returns:
@@ -219,7 +272,10 @@ class PRootAdapter:
             termux_tmp_path = Path("/data/data/com.termux/files/usr/tmp")
             if termux_tmp_path.exists():
                 # Tenta usar tmpdir para evitar problemas de permissão
-                cmd.extend(["-t", str(termux_tmp_path)])
+                try:
+                    cmd.extend(["-t", str(termux_tmp_path)])
+                except Exception:
+                    pass
         
         # Bind mounts adicionais
         if bind_mounts:
