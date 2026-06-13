@@ -79,23 +79,53 @@ class PRootManager(BaseManager):
         shells = ["/bin/bash", "/bin/zsh", "/bin/ash", "/bin/sh"]
         for sh in shells:
             shell_path = rootfs_path / sh.lstrip("/")
-            if shell_path.exists() and shell_path.is_file():
+            # Check if path exists (handles both regular files and symlinks)
+            if shell_path.exists() or shell_path.is_symlink():
                 return True
         return False
     
     def _find_shell(self, target):
         """Encontra shell disponível no rootfs."""
         shells = ["/bin/bash", "/bin/zsh", "/bin/ash", "/bin/sh"]
+        target_path = Path(target)
+        
         for sh in shells:
-            shell_path = Path(target) / sh.lstrip("/")
-            if shell_path.exists() and shell_path.is_file():
+            shell_path = target_path / sh.lstrip("/")
+            # Check if path exists (handles both regular files and symlinks)
+            if shell_path.exists() or shell_path.is_symlink():
                 return sh
+        
+        # Se nenhum shell foi encontrado, tenta alternativas
+        bin_dir = target_path / "bin"
+        if bin_dir.exists():
+            # Procura por qualquer arquivo executável que pareça um shell
+            possible_shells = []
+            try:
+                for item in bin_dir.iterdir():
+                    if item.is_file() or item.is_symlink():
+                        # Verifica se é um shell comum
+                        if item.name in ["sh", "bash", "zsh", "ash", "busybox"]:
+                            return f"/bin/{item.name}"
+                        possible_shells.append(item.name)
+            except Exception:
+                pass
+            
+            # Se encontrou busybox, usa como fallback
+            busybox_path = bin_dir / "busybox"
+            if busybox_path.exists() or busybox_path.is_symlink():
+                return "/bin/busybox"
         
         # Se nenhum shell foi encontrado, isso é um erro crítico
         print(f"❌ Erro crítico: Nenhum shell foi encontrado no rootfs")
         print(f"   Shells procurados: {', '.join(shells)}")
         print(f"   Rootfs path: {target}")
-        print(f"   Conteúdo do diretório bin: {list((Path(target) / 'bin').glob('*')) if (Path(target) / 'bin').exists() else 'não existe'}")
+        bin_contents = []
+        if bin_dir.exists():
+            try:
+                bin_contents = list(bin_dir.glob('*'))
+            except Exception:
+                bin_contents = ["<erro ao listar diretório>"]
+        print(f"   Conteúdo do diretório bin: {bin_contents}")
         raise FileNotFoundError(f"Nenhum shell disponível em {target}")
     
     def start(self, rootfs_path):
