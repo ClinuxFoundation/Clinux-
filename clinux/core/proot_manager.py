@@ -232,6 +232,137 @@ class PRootManager(BaseManager):
         """
         # Usa o método interno em vez de depender do adapter
         self._extract_rootfs(archive_path, dest_dir)
+        return dest_dir            # Check if path exists (handles both regular files and symlinks)
+            if shell_path.exists() or shell_path.is_symlink():
+                return sh
+        
+        # Se nenhum shell foi encontrado, tenta alternativas
+        bin_dir = target_path / "bin"
+        if bin_dir.exists():
+            # Procura por qualquer arquivo executável que pareça um shell
+            try:
+                for item in bin_dir.iterdir():
+                    if item.is_file() or item.is_symlink():
+                        # Verifica se é um shell comum
+                        if item.name in ["sh", "bash", "zsh", "ash", "busybox"]:
+                            return f"/bin/{item.name}"
+            except Exception:
+                pass
+            
+            # Se encontrou busybox, usa como fallback
+            busybox_path = bin_dir / "busybox"
+            if busybox_path.exists() or busybox_path.is_symlink():
+                return "/bin/busybox"
+        
+        # Se nenhum shell foi encontrado, isso é um erro crítico
+        bin_contents = []  # Inicializa a variável aqui
+        print(f"❌ Erro crítico: Nenhum shell foi encontrado no rootfs")
+        print(f"   Shells procurados: {', '.join(shells)}")
+        print(f"   Rootfs path: {target}")
+        
+        if bin_dir.exists():
+            try:
+                bin_contents = list(bin_dir.glob('*'))
+            except Exception:
+                bin_contents = ["<erro ao listar diretório>"]
+        print(f"   Conteúdo do diretório bin: {bin_contents}")
+        raise FileNotFoundError(f"Nenhum shell disponível em {target}")
+    
+    def start(self, rootfs_path):
+        """Inicia ambiente PRoot.
+        
+        Args:
+            rootfs_path: Caminho para o rootfs (arquivo tar ou diretório)
+        """
+        self.check_dependencies()
+        
+        rootfs_path = Path(rootfs_path)
+        if not rootfs_path.exists():
+            print(f"❌ Rootfs não encontrado: {rootfs_path}")
+            sys.exit(1)
+        
+        name = rootfs_path.stem.replace(".tar", "")
+        
+        # Extrai se for arquivo tar
+        if str(rootfs_path).endswith((".tar.gz", ".tgz", ".tar")):
+            dest = self.storage.roots / name
+            if not dest.exists() or not any(dest.iterdir()):
+                self._extract_rootfs(rootfs_path, dest)
+            target = dest
+        else:
+            target = rootfs_path
+        
+        # Valida o target antes de prosseguir
+        if not self.validate(target):
+            print(f"❌ Rootfs inválido: estrutura mínima não encontrada")
+            sys.exit(1)
+        
+        # Registra no storage
+        if not self.storage.get_root(name):
+            self.storage.add_root(name, target)
+        
+        # Encontra shell (levanta exceção se não encontrado)
+        try:
+            shell = self._find_shell(target)
+        except FileNotFoundError as e:
+            print(f"❌ {e}")
+            sys.exit(1)
+        
+        # Inicia com o adapter
+        print(f"🌱 Iniciando ambiente PRoot '{name}'...")
+        print(f"   Shell: {shell}")
+        print(f"   Plataforma: {'Termux/Android' if self.is_termux else 'Linux'}")
+        print(f"   Digite 'exit' para sair\n")
+        
+        try:
+            self.adapter.start(str(target), shell=shell)
+        except KeyboardInterrupt:
+            print("\n\n👋 Saindo...")
+        except Exception as e:
+            print(f"❌ Erro: {e}")
+            sys.exit(1)
+    
+    def run_command(self, rootfs_path, command):
+        """Executa comando dentro do PRoot.
+        
+        Args:
+            rootfs_path: Caminho para o rootfs
+            command: Comando a executar (string ou lista)
+        
+        Returns:
+            Código de retorno
+        """
+        self.check_dependencies()
+        
+        rootfs_path = Path(rootfs_path)
+        if not rootfs_path.exists():
+            print(f"❌ Rootfs não encontrado: {rootfs_path}")
+            return 1
+        
+        # Valida o rootfs antes de executar
+        if not self.validate(rootfs_path):
+            print(f"❌ Rootfs inválido: estrutura mínima não encontrada")
+            return 1
+        
+        try:
+            result = self.adapter.run_command(str(rootfs_path), command)
+            return result.returncode
+        except Exception as e:
+            print(f"❌ Erro ao executar comando: {e}")
+            return 1
+    
+    def extract_rootfs(self, archive_path, dest_dir):
+        """Extrai rootfs manualmente.
+        
+        Args:
+            archive_path: Caminho do arquivo tar
+            dest_dir: Diretório de destino
+        
+        Returns:
+            Caminho do diretório extraído
+        """
+        # Usa o método interno em vez de depender do adapter
+        self._extract_rootfs(archive_path, dest_dir)
         return dest_dir                for item in bin_dir.iterdir():
                     if item.is_file() or item.is_symlink():
                         # Verifica se é um shell comum
