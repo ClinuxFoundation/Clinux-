@@ -30,6 +30,9 @@ class PRootAdapter:
         if not rootfs_path.exists():
             raise FileNotFoundError(f"Rootfs não encontrado: {rootfs}")
         
+        # Prepara o rootfs (cria diretórios e mounts necessários)
+        self._prepare_rootfs(rootfs_path)
+        
         cmd = self._build_proot_command(rootfs_path, shell, bind_mounts)
         
         try:
@@ -59,6 +62,27 @@ class PRootAdapter:
         except Exception as e:
             print(f"❌ Erro ao extrair tarball: {e}", file=sys.stderr)
             raise
+    
+    def _prepare_rootfs(self, rootfs_path):
+        """Prepara o rootfs criando diretórios e permissões necessárias."""
+        try:
+            # Garante que /tmp existe e tem permissões corretas
+            tmp_dir = rootfs_path / "tmp"
+            tmp_dir.mkdir(exist_ok=True)
+            tmp_dir.chmod(0o1777)
+            
+            # Garante que /run existe (necessário para PRoot em Termux)
+            run_dir = rootfs_path / "run"
+            run_dir.mkdir(exist_ok=True)
+            run_dir.chmod(0o755)
+            
+            # Cria /dev, /proc, /sys se não existirem
+            for d in ["dev", "proc", "sys"]:
+                dir_path = rootfs_path / d
+                dir_path.mkdir(exist_ok=True)
+        except OSError as e:
+            # Algumas operações podem falhar dependendo do filesystem
+            pass
     
     def _check_dependencies(self):
         """Verifica se proot está instalado."""
@@ -125,12 +149,11 @@ class PRootAdapter:
         """
         cmd = ["proot"]
         
-        # Bind mounts essenciais
+        # Bind mounts essenciais - apenas monta se existirem no HOST
         essential_binds = [
             ("/dev", "/dev"),
             ("/proc", "/proc"),
             ("/sys", "/sys"),
-            ("/tmp", "/tmp"),
         ]
         
         if self.is_termux:
@@ -143,19 +166,26 @@ class PRootAdapter:
         # Root filesystem
         cmd.extend(["-r", str(rootfs_path)])
         
-        # Working directory
-        cmd.extend(["-w", "/"])
+        # Working directory - usa /root em vez de / para evitar problemas
+        cmd.extend(["-w", "/root"])
         
-        # Bind mounts essenciais
+        # Bind mounts essenciais - verifica existência no HOST
         for src, dest in essential_binds:
             src_path = Path(src)
             if src_path.exists():
                 cmd.extend(["-b", f"{src}:{dest}"])
         
+        # /tmp sempre precisa estar acessível
+        tmp_path = Path("/tmp")
+        if tmp_path.exists():
+            cmd.extend(["-b", "/tmp:/tmp"])
+        
         # Bind mounts adicionais
         if bind_mounts:
             for src, dest in bind_mounts:
-                cmd.extend(["-b", f"{src}:{dest}"])
+                src_path = Path(src)
+                if src_path.exists():
+                    cmd.extend(["-b", f"{src}:{dest}"])
         
         # Shell
         cmd.append(shell)
@@ -179,6 +209,9 @@ class PRootAdapter:
         rootfs_path = Path(rootfs)
         if not rootfs_path.exists():
             raise FileNotFoundError(f"Rootfs não encontrado: {rootfs}")
+        
+        # Prepara o rootfs
+        self._prepare_rootfs(rootfs_path)
         
         if isinstance(command, str) and not shell:
             command = command.split()
