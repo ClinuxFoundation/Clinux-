@@ -69,17 +69,37 @@ class PRootAdapter:
             # Garante que /tmp existe e tem permissões corretas
             tmp_dir = rootfs_path / "tmp"
             tmp_dir.mkdir(exist_ok=True)
-            tmp_dir.chmod(0o1777)
+            try:
+                tmp_dir.chmod(0o1777)
+            except OSError:
+                pass
             
             # Garante que /run existe (necessário para PRoot em Termux)
             run_dir = rootfs_path / "run"
             run_dir.mkdir(exist_ok=True)
-            run_dir.chmod(0o755)
+            try:
+                run_dir.chmod(0o755)
+            except OSError:
+                pass
             
             # Cria /dev, /proc, /sys se não existirem
             for d in ["dev", "proc", "sys"]:
                 dir_path = rootfs_path / d
                 dir_path.mkdir(exist_ok=True)
+            
+            # Cria /root se não existir (working directory)
+            root_home = rootfs_path / "root"
+            root_home.mkdir(exist_ok=True)
+            try:
+                root_home.chmod(0o700)
+            except OSError:
+                pass
+                
+            # Garante que diretórios essenciais para libs existem
+            for d in ["lib", "lib64", "usr/lib", "usr/local/lib"]:
+                lib_dir = rootfs_path / d
+                lib_dir.mkdir(parents=True, exist_ok=True)
+                
         except OSError as e:
             # Algumas operações podem falhar dependendo do filesystem
             pass
@@ -109,8 +129,8 @@ class PRootAdapter:
             # Se for ARM64, pode precisar de QEMU para x86_64
             if arch == "aarch64":
                 # Opcional: avisar sobre possível necessidade de QEMU
-                if not shutil.which("qemu-x86_64-static"):
-                    print("⚠️  Para melhor compatibilidade, considere instalar QEMU")
+                if not shutil.which("qemu-aarch64-static"):
+                    print("⚠️  Para melhor compatibilidade com outras arquiteturas, considere instalar QEMU")
         except:
             pass
     
@@ -149,6 +169,9 @@ class PRootAdapter:
         """
         cmd = ["proot"]
         
+        # Argumentos para melhorar compatibilidade
+        cmd.extend(["-q", "execve"])  # Quiet mode para erros de execve
+        
         # Bind mounts essenciais - apenas monta se existirem no HOST
         essential_binds = [
             ("/dev", "/dev"),
@@ -162,6 +185,14 @@ class PRootAdapter:
                 ("/data/data/com.termux", "/data/data/com.termux"),
                 ("/system", "/system"),
             ])
+            
+            # Cria um diretório temporário seguro em Termux se necessário
+            termux_tmp = Path("/data/data/com.termux/files/usr/tmp")
+            termux_tmp.mkdir(parents=True, exist_ok=True)
+            try:
+                termux_tmp.chmod(0o1777)
+            except OSError:
+                pass
         
         # Root filesystem
         cmd.extend(["-r", str(rootfs_path)])
@@ -175,10 +206,20 @@ class PRootAdapter:
             if src_path.exists():
                 cmd.extend(["-b", f"{src}:{dest}"])
         
-        # /tmp sempre precisa estar acessível
+        # /tmp sempre precisa estar acessível - tenta usar o tmpfs do host
         tmp_path = Path("/tmp")
         if tmp_path.exists():
-            cmd.extend(["-b", "/tmp:/tmp"])
+            try:
+                cmd.extend(["-b", "/tmp:/tmp"])
+            except Exception:
+                pass
+        
+        # Em Termux, usa o /tmp específico do Termux
+        if self.is_termux:
+            termux_tmp_path = Path("/data/data/com.termux/files/usr/tmp")
+            if termux_tmp_path.exists():
+                # Tenta usar tmpdir para evitar problemas de permissão
+                cmd.extend(["-t", str(termux_tmp_path)])
         
         # Bind mounts adicionais
         if bind_mounts:
@@ -188,7 +229,8 @@ class PRootAdapter:
                     cmd.extend(["-b", f"{src}:{dest}"])
         
         # Shell
-        cmd.append(shell)
+        if shell:
+            cmd.append(shell)
         
         return cmd
     
@@ -219,13 +261,13 @@ class PRootAdapter:
         proot_cmd = self._build_proot_command(rootfs_path, "", bind_mounts)
         
         # Remove shell do final se vazio
-        if proot_cmd[-1] == "":
+        if proot_cmd and proot_cmd[-1] == "":
             proot_cmd = proot_cmd[:-1]
         
         if isinstance(command, list):
             proot_cmd.extend(command)
         else:
-            proot_cmd.extend(["/bin/bash", "-c", command])
+            proot_cmd.extend(["/bin/ash", "-c", command])
         
         try:
             result = subprocess.run(proot_cmd, check=False)
