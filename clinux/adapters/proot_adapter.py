@@ -223,7 +223,13 @@ class PRootAdapter:
         cmd = ["proot"]
         
         # Argumentos para melhorar compatibilidade
-        cmd.extend(["-q", "execve"])  # Quiet mode para erros de execve
+        cmd.extend(["-0"])  # Compatibilidade com root
+        
+        # Root filesystem
+        cmd.extend(["-r", str(rootfs_path)])
+        
+        # Working directory - usa /root em vez de / para evitar problemas
+        cmd.extend(["-w", "/root"])
         
         # Bind mounts essenciais - apenas monta se existirem no HOST
         essential_binds = [
@@ -238,20 +244,6 @@ class PRootAdapter:
                 ("/data/data/com.termux", "/data/data/com.termux"),
                 ("/system", "/system"),
             ])
-            
-            # Cria um diretório temporário seguro em Termux se necessário
-            termux_tmp = Path("/data/data/com.termux/files/usr/tmp")
-            termux_tmp.mkdir(parents=True, exist_ok=True)
-            try:
-                termux_tmp.chmod(0o1777)
-            except OSError:
-                pass
-        
-        # Root filesystem
-        cmd.extend(["-r", str(rootfs_path)])
-        
-        # Working directory - usa /root em vez de / para evitar problemas
-        cmd.extend(["-w", "/root"])
         
         # Bind mounts essenciais - verifica existência no HOST
         for src, dest in essential_binds:
@@ -259,23 +251,16 @@ class PRootAdapter:
             if src_path.exists():
                 cmd.extend(["-b", f"{src}:{dest}"])
         
-        # /tmp sempre precisa estar acessível - tenta usar o tmpfs do host
+        # /tmp sempre precisa estar acessível
         tmp_path = Path("/tmp")
         if tmp_path.exists():
-            try:
-                cmd.extend(["-b", "/tmp:/tmp"])
-            except Exception:
-                pass
+            cmd.extend(["-b", "/tmp:/tmp"])
         
-        # Em Termux, usa o /tmp específico do Termux
+        # Em Termux, adiciona bind do tmp do Termux
         if self.is_termux:
             termux_tmp_path = Path("/data/data/com.termux/files/usr/tmp")
             if termux_tmp_path.exists():
-                # Tenta usar tmpdir para evitar problemas de permissão
-                try:
-                    cmd.extend(["-t", str(termux_tmp_path)])
-                except Exception:
-                    pass
+                cmd.extend(["-b", f"{termux_tmp_path}:/data/data/com.termux/files/usr/tmp"])
         
         # Bind mounts adicionais
         if bind_mounts:
