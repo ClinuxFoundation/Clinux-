@@ -46,22 +46,57 @@ class PRootManager(BaseManager):
                     except Exception as e:
                         print(f"⚠️  Erro ao extrair {member.name}: {e}")
             
-            # Cria diretórios essenciais
-            for d in ["dev", "proc", "sys", "tmp", "home", "root"]:
-                (dest_dir / d).mkdir(exist_ok=True)
+            # Cria diretórios essenciais com permissões corretas
+            essential_dirs = {
+                "dev": 0o755,
+                "proc": 0o555,
+                "sys": 0o555,
+                "tmp": 0o1777,
+                "home": 0o755,
+                "root": 0o700,
+                "run": 0o755,
+            }
+            
+            for d, perms in essential_dirs.items():
+                dir_path = dest_dir / d
+                dir_path.mkdir(exist_ok=True)
+                try:
+                    dir_path.chmod(perms)
+                except OSError:
+                    pass  # Pode falhar em alguns filesystems
+            
+            # Valida binários críticos após extração
+            if not self._validate_shell_available(dest_dir):
+                print("⚠️  Aviso: Nenhum shell encontrado no rootfs")
             
             print("✅ Extração concluída!")
         except Exception as e:
             print(f"❌ Erro na extração: {e}")
             raise
     
+    def _validate_shell_available(self, rootfs_path):
+        """Valida se pelo menos um shell está disponível."""
+        shells = ["/bin/bash", "/bin/zsh", "/bin/ash", "/bin/sh"]
+        for sh in shells:
+            shell_path = rootfs_path / sh.lstrip("/")
+            if shell_path.exists() and shell_path.is_file():
+                return True
+        return False
+    
     def _find_shell(self, target):
         """Encontra shell disponível no rootfs."""
         shells = ["/bin/bash", "/bin/zsh", "/bin/ash", "/bin/sh"]
         for sh in shells:
-            if (Path(target) / sh.lstrip("/")).exists():
+            shell_path = Path(target) / sh.lstrip("/")
+            if shell_path.exists() and shell_path.is_file():
                 return sh
-        return "/bin/sh"
+        
+        # Se nenhum shell foi encontrado, isso é um erro crítico
+        print(f"❌ Erro crítico: Nenhum shell foi encontrado no rootfs")
+        print(f"   Shells procurados: {', '.join(shells)}")
+        print(f"   Rootfs path: {target}")
+        print(f"   Conteúdo do diretório bin: {list((Path(target) / 'bin').glob('*')) if (Path(target) / 'bin').exists() else 'não existe'}")
+        raise FileNotFoundError(f"Nenhum shell disponível em {target}")
     
     def start(self, rootfs_path):
         """Inicia ambiente PRoot.
@@ -91,7 +126,12 @@ class PRootManager(BaseManager):
         if not self.storage.get_root(name):
             self.storage.add_root(name, target)
         
-        shell = self._find_shell(target)
+        # Encontra shell (levanta exceção se não encontrado)
+        try:
+            shell = self._find_shell(target)
+        except FileNotFoundError as e:
+            print(f"❌ {e}")
+            sys.exit(1)
         
         # Inicia com o adapter
         print(f"🌱 Iniciando ambiente PRoot '{name}'...")
